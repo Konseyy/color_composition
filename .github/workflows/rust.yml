@@ -3,35 +3,21 @@ name: Rust
 on:
   push:
     branches: [ "main" ]
-    
-env:
-  CARGO_TERM_COLOR: always
-
+  
 jobs:
   build:
-
+    name: Publish binaries
     runs-on: ubuntu-latest
 
     steps:
     - uses: actions/checkout@v3
     - name: Build
-      run: cargo build --verbose --release
-    - name: release
-      uses: actions/create-release@v1
-      id: create_release
+      run: cargo build --release
+    - name: Upload binaries to release
+      uses: svenstaro/upload-release-action@v2
       with:
-        draft: false
-        prerelease: false
-        release_name: Release ${{ github.ref }}
-        tag_name: ${{ github.ref }}
-      env:
-        GITHUB_TOKEN: ${{ github.token }}
-    - name: upload windows artifact
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ github.token }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./target/release/color_compoisition.exe
-        asset_name: color_compoisition.exe
-        asset_content_type: application/executable
+        repo_token: ${{ secrets.GITHUB_TOKEN }}
+        file: target/release/color_composition.exe
+        asset_name: color_composition.exe
+        tag: ${{ github.ref }}
+        overwrite: true
