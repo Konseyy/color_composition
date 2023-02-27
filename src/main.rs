@@ -23,7 +23,7 @@ struct ImgInfo {
 }
 
 const ANIMATION_DURATION: f32 = 10.0;
-const FPS: f32 = 40.0;
+const FPS: f32 = 60.0;
 const FRAME_DELAY: u32 = (1.0 / FPS * 1000.0) as u32;
 const FRAME_AMOUNT: u16 = ANIMATION_DURATION as u16 * FPS as u16;
 const PITCH_START: f64 = 0.0;
