@@ -16,23 +16,22 @@ jobs:
     - uses: actions/checkout@v3
     - name: Build
       run: cargo build --verbose --release
-    - name: Create Release
-      id: create_release
+    - name: release
       uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      id: create_release
       with:
-        tag_name: ${{ github.ref }}
-        release_name: Release ${{ github.ref }}
         draft: false
         prerelease: false
-    - name: Upload Release Asset
-      id: upload-release-asset 
+        release_name: Release ${{ github.ref }}
+        tag_name: ${{ github.ref }}
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+    - name: upload windows artifact
       uses: actions/upload-release-asset@v1
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GITHUB_TOKEN: ${{ github.token }}
       with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps 
-        asset_path: ./target/release/color_composition.exe
-        asset_name: color_composition.exe
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./target/release/color_compoisition.exe
+        asset_name: color_compoisition.exe
         asset_content_type: application/executable
