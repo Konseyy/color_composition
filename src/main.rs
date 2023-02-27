@@ -4,8 +4,10 @@ use image::GenericImageView;
 use plotters::prelude::*;
 use std::fs;
 use std::path::Path;
+use std::thread;
 use std::time::Instant;
 
+#[derive(Clone)]
 struct Point {
     x: u32,
     y: u32,
@@ -20,15 +22,15 @@ struct ImgInfo {
     points: Vec<Point>,
 }
 
-const ANIMATION_DURATION: f32 = 6.0;
-const FPS: f32 = 30.0;
+const ANIMATION_DURATION: f32 = 10.0;
+const FPS: f32 = 40.0;
 const FRAME_DELAY: u32 = (1.0 / FPS * 1000.0) as u32;
 const FRAME_AMOUNT: u16 = ANIMATION_DURATION as u16 * FPS as u16;
 const PITCH_START: f64 = 0.0;
-const PITCH_END: f64 = 0.7;
+const PITCH_END: f64 = 0.55;
 const PITCH_INCREMENT: f64 = (PITCH_END - PITCH_START) / FRAME_AMOUNT as f64;
 const YAW_START: f64 = 0.2;
-const YAW_END: f64 = 5.0;
+const YAW_END: f64 = 10.0;
 const YAW_INCREMENT: f64 = (YAW_END - YAW_START) / FRAME_AMOUNT as f64;
 const SCALE: f64 = 0.8;
 const IMG_WIDTH: u32 = 1280;
@@ -63,6 +65,61 @@ fn process_image(input_path: &str) -> Option<ImgInfo> {
     });
 }
 
+fn spawn_composition_thread(
+    title: String,
+    file_name: String,
+    points: Vec<Point>,
+    color_extractor: fn(&Point) -> u32,
+    color: String,
+    color_obj: RGBColor,
+    height: u32,
+    width: u32,
+) -> std::thread::JoinHandle<()> {
+    thread::spawn(move || {
+        let root = BitMapBackend::gif(file_name, (IMG_WIDTH, IMG_HEIGHT), FRAME_DELAY)
+            .unwrap()
+            .into_drawing_area();
+        let mut chart = ChartBuilder::on(&root)
+            .margin(20)
+            .caption(title, ("sans-serif", 40))
+            .build_cartesian_3d(0..width, 0..height, 0..255 as u32)
+            .unwrap();
+
+        for i in 0..FRAME_AMOUNT {
+            // Generate red frame
+            let start_frame = Instant::now();
+            println!("Generating {} frame {}", color, i + 1);
+            root.fill(&WHITE).unwrap();
+            chart.with_projection(|mut pb| {
+                pb.pitch = PITCH_START + PITCH_INCREMENT * i as f64;
+                pb.yaw = YAW_START + YAW_INCREMENT * i as f64;
+                pb.scale = SCALE;
+                pb.into_matrix()
+            });
+            chart
+                .draw_series(PointSeries::of_element(
+                    points
+                        .iter()
+                        .map(|point| (point.x as u32, point.y as u32, color_extractor(point))),
+                    POINT_SIZE,
+                    color_obj,
+                    &|c, s, st| {
+                        return EmptyElement::at(c) + Circle::new((0, 0), s, st.filled());
+                    },
+                ))
+                .unwrap();
+            chart.configure_axes().draw().unwrap();
+            root.present().unwrap();
+            println!(
+                "Finished generating {} frame {}, time elapsed: {:?}",
+                color,
+                i + 1,
+                start_frame.elapsed()
+            );
+        }
+    })
+}
+
 fn main() {
     use std::io::{stdin, stdout, Write};
     let mut s = String::new();
@@ -87,124 +144,93 @@ fn main() {
     fs::create_dir_all("images").unwrap();
     let start = Instant::now();
 
-    let red_root = BitMapBackend::gif("images/r-val.gif", (IMG_WIDTH, IMG_HEIGHT), FRAME_DELAY)
-        .unwrap()
-        .into_drawing_area();
-    let mut red_chart = ChartBuilder::on(&red_root)
-        .margin(20)
-        .caption(format!("Red values of {s}"), ("sans-serif", 40))
-        .build_cartesian_3d(0..img_info.width, 0..img_info.height, 0..255 as u32)
-        .unwrap();
+    let red_title = format!("Red values of {s}");
+    let red_file_name = "images/r-val.gif";
+    let mut red_points = Vec::new();
+    red_points.resize(
+        img_info.points.len(),
+        Point {
+            x: 0,
+            y: 0,
+            r: 0,
+            g: 0,
+            b: 0,
+        },
+    );
+    red_points.clone_from_slice(img_info.points.as_slice());
 
-    let blue_root = BitMapBackend::gif("images/b-val.gif", (IMG_WIDTH, IMG_HEIGHT), FRAME_DELAY)
-        .unwrap()
-        .into_drawing_area();
-    let mut blue_chart = ChartBuilder::on(&blue_root)
-        .margin(20)
-        .caption(format!("Blue values of {s}"), ("sans-serif", 40))
-        .build_cartesian_3d(0..img_info.width, 0..img_info.height, 0..255 as u32)
-        .unwrap();
+    let green_file_name = "images/g-val.gif";
+    let green_title = format!("Green values of {s}");
+    let mut green_points = Vec::new();
+    green_points.resize(
+        img_info.points.len(),
+        Point {
+            x: 0,
+            y: 0,
+            r: 0,
+            g: 0,
+            b: 0,
+        },
+    );
+    green_points.clone_from_slice(img_info.points.as_slice());
 
-    let green_root = BitMapBackend::gif("images/g-val.gif", (IMG_WIDTH, IMG_HEIGHT), FRAME_DELAY)
-        .unwrap()
-        .into_drawing_area();
-    let mut green_chart = ChartBuilder::on(&green_root)
-        .margin(20)
-        .caption(format!("Green values of {s}"), ("sans-serif", 40))
-        .build_cartesian_3d(0..img_info.width, 0..img_info.height, 0..255 as u32)
-        .unwrap();
+    let blue_file_name = "images/b-val.gif";
+    let blue_title = format!("Blue values of {s}");
+    let mut blue_points = Vec::new();
+    blue_points.resize(
+        img_info.points.len(),
+        Point {
+            x: 0,
+            y: 0,
+            r: 0,
+            g: 0,
+            b: 0,
+        },
+    );
+    blue_points.clone_from_slice(img_info.points.as_slice());
 
-    let mut generate_red_frame = |i: &u16| {
-        // Generate red frame
-        red_root.fill(&WHITE).unwrap();
-        red_chart.with_projection(|mut pb| {
-            pb.pitch = PITCH_START + PITCH_INCREMENT * *i as f64;
-            pb.yaw = YAW_START + YAW_INCREMENT * *i as f64;
-            pb.scale = SCALE;
-            pb.into_matrix()
-        });
-        red_chart
-            .draw_series(PointSeries::of_element(
-                img_info
-                    .points
-                    .iter()
-                    .map(|point| (point.x as u32, point.y as u32, point.r as u32)),
-                POINT_SIZE,
-                RED,
-                &|c, s, st| {
-                    return EmptyElement::at(c) + Circle::new((0, 0), s, st.filled());
-                },
-            ))
-            .unwrap();
-        red_chart.configure_axes().draw().unwrap();
-        red_root.present().unwrap();
-    };
+    let red_thread = spawn_composition_thread(
+        red_title,
+        red_file_name.to_string(),
+        red_points,
+        |point| point.r as u32,
+        "red".to_string(),
+        RED,
+        img_info.height.clone(),
+        img_info.width.clone(),
+    );
 
-    let mut generate_green_frame = |i: &u16| {
-        green_root.fill(&WHITE).unwrap();
-        green_chart.with_projection(|mut pb| {
-            pb.pitch = PITCH_START + PITCH_INCREMENT * *i as f64;
-            pb.yaw = YAW_START + YAW_INCREMENT * *i as f64;
-            pb.scale = SCALE;
-            pb.into_matrix()
-        });
-        green_chart
-            .draw_series(PointSeries::of_element(
-                img_info
-                    .points
-                    .iter()
-                    .map(|point| (point.x as u32, point.y as u32, point.g as u32)),
-                POINT_SIZE,
-                GREEN,
-                &|c, s, st| {
-                    return EmptyElement::at(c) + Circle::new((0, 0), s, st.filled());
-                },
-            ))
-            .unwrap();
-        green_chart.configure_axes().draw().unwrap();
-        green_root.present().unwrap();
-    };
+    let green_thread = spawn_composition_thread(
+        green_title,
+        green_file_name.to_string(),
+        green_points,
+        |point| point.g as u32,
+        "green".to_string(),
+        GREEN,
+        img_info.height.clone(),
+        img_info.width.clone(),
+    );
 
-    let mut generate_blue_frame = |i: &u16| {
-        // Generate blue frame
-        blue_root.fill(&WHITE).unwrap();
-        blue_chart.with_projection(|mut pb| {
-            pb.pitch = PITCH_START + PITCH_INCREMENT * *i as f64;
-            pb.yaw = YAW_START + YAW_INCREMENT * *i as f64;
-            pb.scale = SCALE;
-            pb.into_matrix()
-        });
-        blue_chart
-            .draw_series(PointSeries::of_element(
-                img_info
-                    .points
-                    .iter()
-                    .map(|point| (point.x as u32, point.y as u32, point.b as u32)),
-                POINT_SIZE,
-                BLUE,
-                &|c, s, st| {
-                    return EmptyElement::at(c) + Circle::new((0, 0), s, st.filled());
-                },
-            ))
-            .unwrap();
-        blue_chart.configure_axes().draw().unwrap();
-        blue_root.present().unwrap();
-    };
+    let blue_thread = spawn_composition_thread(
+        blue_title,
+        blue_file_name.to_string(),
+        blue_points,
+        |point| point.b as u32,
+        "blue".to_string(),
+        BLUE,
+        img_info.height.clone(),
+        img_info.width.clone(),
+    );
 
     println!("Generating total of {} frames", FRAME_AMOUNT);
 
-    for i in 0..FRAME_AMOUNT {
-        let start_frame = Instant::now();
-        println!("Generating frame {}", i + 1);
-        generate_red_frame(&i);
-        generate_green_frame(&i);
-        generate_blue_frame(&i);
-        println!(
-            "Finished generating frame {}, time elapsed: {:?}",
-            i + 1,
-            start_frame.elapsed()
-        );
-    }
+    red_thread.join().unwrap();
+    green_thread.join().unwrap();
+    blue_thread.join().unwrap();
 
-    println!("Time elapsed generating all frames: {:?}", start.elapsed());
+    println!(
+        "Time elapsed generating all {} frames: {:?}",
+        FRAME_AMOUNT,
+        start.elapsed()
+    );
 }
