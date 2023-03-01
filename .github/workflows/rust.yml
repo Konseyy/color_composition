@@ -18,7 +18,7 @@ jobs:
       with:
         repo_token: ${{ secrets.GITHUB_TOKEN }}
         file: ./target/release/color_composition.exe
-        asset_name: color_composition.exe
+        asset_name: color_composition (win)
         release_name: build v0.${{ github.run_id }}
         tag: ${{ github.run_id }}
         overwrite: true
@@ -35,7 +35,7 @@ jobs:
       with:
         repo_token: ${{ secrets.GITHUB_TOKEN }}
         file: ./target/release/color_composition
-        asset_name: color_composition.exe
+        asset_name: color_composition (unix)
         release_name: build v0.${{ github.run_id }}
         tag: ${{ github.run_id }}
         overwrite: true
