@@ -5,8 +5,8 @@ on:
     branches: [ "main" ]
   
 jobs:
-  build:
-    name: Publish binaries
+  build-win:
+    name: Publish binaries (win)
     runs-on: windows-latest
 
     steps:
@@ -19,6 +19,23 @@ jobs:
         repo_token: ${{ secrets.GITHUB_TOKEN }}
         file: ./target/release/color_composition.exe
         asset_name: color_composition.exe
-        release_name: v0.${{ github.run_id }}
+        release_name: build v0.${{ github.run_id }}
+        tag: ${{ github.run_id }}
+        overwrite: true
+  build-unix:
+    name: Publish binaries (unix)
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: Build
+      run: cargo build --release
+    - name: Upload binaries to release
+      uses: svenstaro/upload-release-action@v2
+      with:
+        repo_token: ${{ secrets.GITHUB_TOKEN }}
+        file: ./target/release/color_composition
+        asset_name: color_composition.exe
+        release_name: build v0.${{ github.run_id }}
         tag: ${{ github.run_id }}
         overwrite: true
